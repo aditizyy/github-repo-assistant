@@ -1,0 +1,13 @@
+# Keep your API keys and passwords private
+.env
+
+# Ignore local Docker database storage
+mysql_data/
+
+# Ignore local asset and index directories
+cloned_repos/
+faiss_indexes/
+
+# Python cache files
+__pycache__/
+*.pyc
