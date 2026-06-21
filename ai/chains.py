@@ -38,7 +38,7 @@ class _LLMSingleton:
         if cls._streaming is None:
             logger.info("Initialising Gemini (streaming)...")
             cls._streaming = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash",
+                model="gemini-2.5-flash",
                 google_api_key=settings.gemini_api_key,
                 temperature=0.2,          # low = more factual, less creative
                 streaming=True,
@@ -50,7 +50,7 @@ class _LLMSingleton:
     def get_standard(cls) -> ChatGoogleGenerativeAI:
         if cls._standard is None:
             cls._standard = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash",
+                model="gemini-2.5-flash",
                 google_api_key=settings.gemini_api_key,
                 temperature=0.1,
                 convert_system_message_to_human=True,
