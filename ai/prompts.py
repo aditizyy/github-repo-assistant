@@ -143,3 +143,156 @@ Provide:
 7. **Space complexity** — Big-O with justification
 8. **Edge cases** — what could go wrong?
 9. **Suggested improvements** — one concrete suggestion"""
+
+# ── Phase 6: Repository summary prompt (structured JSON) ──────────────────────
+
+REPO_SUMMARY_PROMPT = """You are analysing a software repository called "{repo_name}".
+
+## File Tree
+{file_tree}
+
+## Key File Samples
+{samples}
+
+Generate a structured JSON summary with EXACTLY these keys:
+{{
+  "purpose": "one paragraph describing what this project does",
+  "tech_stack": {{
+    "languages": ["list of programming languages"],
+    "frameworks": ["list of frameworks/libraries"],
+    "databases": ["list of databases used"],
+    "tools": ["build tools, CI, docker, etc"]
+  }},
+  "architecture": "2–3 sentences describing the project structure",
+  "entry_points": ["list of main entry files with brief description"],
+  "key_components": [
+    {{"file": "path", "role": "what this file does"}}
+  ],
+  "api_endpoints": ["list of detected routes, e.g. GET /users"],
+  "setup_steps": ["inferred steps to run this project"],
+  "complexity": "simple | moderate | complex"
+}}
+
+Return ONLY valid JSON. No markdown fences. No explanation."""
+
+
+# ── Phase 6: README generation prompt ──────────────────────────────────────────
+
+README_PROMPT = """Generate a professional, complete README.md for the following project.
+
+## Project Summary
+{summary}
+
+## File Tree
+{file_tree}
+
+## Key File Samples
+{samples}
+
+Requirements:
+- Start with a compelling one-line description and badges placeholder
+- Include: Overview, Features, Tech Stack, Project Structure,
+  Installation, Usage, API Reference (if applicable), Contributing, License
+- Use real file names and actual code samples from what you see
+- Format as proper GitHub Markdown with code blocks
+- Make it look like a senior engineer wrote it
+- Include example commands that actually match the project
+
+Generate the complete README.md content:"""
+
+
+# ── Phase 6: API documentation prompt ──────────────────────────────────────────
+
+API_DOC_PROMPT = """Analyse these source files and generate complete API documentation.
+
+## Source Files
+{samples}
+
+Generate markdown API documentation including:
+
+### For each endpoint detected:
+- HTTP method + path
+- Description
+- Request body (with field types)
+- Response schema (with field types)
+- Example request (curl)
+- Example response (JSON)
+- Possible error codes
+
+### Authentication
+- How auth works (if present)
+- Required headers
+
+Format as clean markdown. If no API endpoints are found, document
+the main public functions/classes instead.
+
+API Documentation:"""
+
+
+# ── Phase 6: Function documentation prompt (per-file) ─────────────────────────
+
+FUNCTION_DOC_PROMPT = """Generate comprehensive documentation for all functions and
+classes in the following source file.
+
+## File: {file_path}
+## Language: {language}
+
+```{language_lower}
+{content}
+```
+
+For EACH function and class, provide:
+
+```
+### `function_or_class_name`
+**Purpose:** What it does in plain English
+**Parameters:**
+  - `param_name` (type): description
+**Returns:** type — description
+**Raises:** exception type — when it's raised (if applicable)
+**Time Complexity:** O(...) — brief justification
+**Space Complexity:** O(...) — brief justification
+**Example:**
+```code
+usage example here
+```
+```
+
+Be thorough. Cover every public function and class."""
+
+
+# ── Phase 6: Architecture analysis prompt ──────────────────────────────────────
+
+ARCHITECTURE_PROMPT = """Analyse this repository and generate an architecture overview.
+
+## Repository: {repo_name}
+## File Tree
+{file_tree}
+
+## Key Files
+{samples}
+
+Generate:
+
+## 1. Architecture Pattern
+Identify the pattern (MVC, layered, microservices, event-driven, etc.)
+and explain how this repo implements it.
+
+## 2. Component Diagram (Mermaid)
+```mermaid
+graph TD
+    [generate a real Mermaid component diagram based on actual files]
+```
+
+## 3. Data Flow
+Step-by-step description of how data flows through the system
+for the primary use case.
+
+## 4. Module Responsibilities
+Table mapping each major directory/module to its responsibility.
+
+## 5. External Dependencies
+List external services, APIs, or databases this project depends on.
+
+## 6. Potential Improvements
+3 concrete architectural improvements with justification."""

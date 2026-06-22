@@ -1,0 +1,51 @@
+# Dockerfile — multi-stage build for the FastAPI backend
+#
+# Stage 1 (builder) compiles/installs Python packages into an isolated
+# prefix. Stage 2 (runtime) copies only the installed packages + source
+# code, skipping build tools like gcc — smaller final image, faster pulls.
+
+# ── Stage 1: Builder ──────────────────────────────────────────────────────────
+FROM python:3.10-slim AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ git curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+COPY requirements.txt .
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# ── Stage 2: Runtime ──────────────────────────────────────────────────────────
+FROM python:3.10-slim AS runtime
+
+# git is needed at RUNTIME too — GitPython shells out to the real git binary
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Non-root user — never run production containers as root
+RUN groupadd -r appuser && useradd -r -g appuser -m appuser
+
+WORKDIR /app
+
+COPY --from=builder /install /usr/local
+
+COPY --chown=appuser:appuser . .
+
+RUN mkdir -p cloned_repos faiss_indexes logs \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
+# Pre-download the sentence-transformer model so the FIRST real request
+# isn't slow. Bakes ~80MB into the image — worth it for cold-start UX.
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

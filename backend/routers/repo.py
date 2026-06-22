@@ -80,7 +80,13 @@ class FileResponse(BaseModel):
 
 def extract_repo_name(github_url: str) -> str:
     """Pulls 'owner/repo' from a GitHub URL."""
-    parts = github_url.rstrip("/").rstrip(".git").split("/")
+    # NOTE: do NOT use .rstrip(".git") here — rstrip treats its argument as a
+    # set of characters to strip, not a literal suffix. It will eat any
+    # trailing combination of '.', 'g', 'i', 't' — which silently chopped the
+    # final 'i' off "fastapi" (→ "fastap"). removesuffix() strips the exact
+    # literal string instead.
+    cleaned = github_url.rstrip("/").removesuffix(".git")
+    parts   = cleaned.split("/")
     return f"{parts[-2]}/{parts[-1]}"
 
 
