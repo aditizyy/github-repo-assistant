@@ -1,0 +1,80 @@
+# docker-compose.prod.yml — Production stack.
+#
+# This is intentionally a SEPARATE file from docker-compose.yml.
+# docker-compose.yml = your dev loop (bind mounts, --reload, fast iteration)
+# docker-compose.prod.yml = this file (built image, no reload, Nginx in front)
+#
+# Run dev with:  docker compose up -d
+# Run prod with: docker compose -f docker-compose.prod.yml up -d --build
+
+services:
+
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p${DB_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - app-network
+    # NOTE: no "ports:" exposed to the host here on purpose — only the
+    # backend container needs to reach mysql, and it does so over the
+    # internal app-network using the service name "mysql" as hostname.
+    # Exposing 3306/3307 to the host is a dev convenience, not a prod need.
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - APP_ENV=production
+      - DB_HOST=mysql
+    volumes:
+      - repo_data:/app/cloned_repos
+      - faiss_data:/app/faiss_indexes
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+    # NOTE: no "ports:" here either — Nginx is the only thing that should
+    # be reachable from outside the Docker network in production. Backend
+    # is reached at http://backend:8000 internally.
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+volumes:
+  mysql_data:
+  repo_data:
+  faiss_data:
+
+networks:
+  app-network:
+    driver: bridge
