@@ -11,3 +11,25 @@ faiss_indexes/
 # Python cache files
 __pycache__/
 *.pyc
+
+# Test/debug artifacts created during manual API testing
+request.json
+clone_request.json
+hello_world_request.json
+fastapi_request.json
+readme_request.json
+followup_request.json
+*_output.md
+*_output2.md
+readme_forced.md
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.egg-info/
+.pytest_cache/
+.coverage
