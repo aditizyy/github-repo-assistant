@@ -1,12 +1,18 @@
 """
 app.py — Streamlit chat interface with streaming support.
 """
+import os
 import json
 import time
 import httpx
 import streamlit as st
 
-API_BASE = "http://localhost:8000/api"
+# API_BASE is configurable via env var so this works in two contexts:
+#   - Dev (running on your host machine): defaults to localhost:8000
+#   - Prod (running inside Docker, behind Nginx): set API_BASE=http://backend:8000/api
+#     since "localhost" inside the Streamlit container would point at
+#     itself, not at the backend container.
+API_BASE = os.getenv("API_BASE", "http://localhost:8000/api")
 
 st.set_page_config(
     page_title="GitHub Repo Assistant",
@@ -56,14 +62,23 @@ with st.sidebar:
         emoji  = {"ready": "✅", "cloning": "🔄", "indexing": "📦",
                   "error": "❌", "pending": "⏳"}.get(repo["status"], "❓")
         label  = f"{emoji} {repo['repo_name']}"
-        if st.button(label, key=f"sel_{repo['id']}", use_container_width=True):
-            if repo["status"] == "ready":
-                st.session_state.active_repo_id    = repo["id"]
-                st.session_state.active_session_id = None
-                st.session_state.messages          = []
-                st.session_state.sources           = []
-            else:
-                st.warning(f"Status: {repo['status']}. Wait for indexing to complete.")
+
+        col_repo, col_del_repo = st.columns([5, 1])
+        with col_repo:
+            if st.button(label, key=f"sel_{repo['id']}", use_container_width=True):
+                if repo["status"] == "ready":
+                    st.session_state.active_repo_id    = repo["id"]
+                    st.session_state.active_session_id = None
+                    st.session_state.messages          = []
+                    st.session_state.sources           = []
+                else:
+                    st.warning(f"Status: {repo['status']}. Wait for indexing to complete.")
+        with col_del_repo:
+            if st.button("🗑", key=f"del_repo_{repo['id']}"):
+                httpx.delete(f"{API_BASE}/repos/{repo['id']}", timeout=10)
+                if st.session_state.active_repo_id == repo["id"]:
+                    st.session_state.active_repo_id = None
+                st.rerun()
 
     # New chat button
     if st.session_state.active_repo_id:
@@ -80,19 +95,31 @@ with st.sidebar:
                 f"{API_BASE}/chat/{st.session_state.active_repo_id}/sessions",
                 timeout=5,
             ).json()
-            for s in sessions[:8]:
-                if st.button(
-                    f"💬 {s['session_name'][:30]}",
-                    key=f"sess_{s['id']}",
-                    use_container_width=True,
-                ):
-                    st.session_state.active_session_id = s["id"]
-                    # Load history from API
-                    hist = httpx.get(
-                        f"{API_BASE}/chat/sessions/{s['id']}/history",
-                        timeout=5,
-                    ).json()
-                    st.session_state.messages = hist["messages"]
+            for s in sessions[:15]:
+                col_select, col_delete = st.columns([5, 1])
+
+                with col_select:
+                    if st.button(
+                        f"💬 {s['session_name'][:28]}",
+                        key=f"sess_{s['id']}",
+                        use_container_width=True,
+                    ):
+                        st.session_state.active_session_id = s["id"]
+                        hist = httpx.get(
+                            f"{API_BASE}/chat/sessions/{s['id']}/history",
+                            timeout=5,
+                        ).json()
+                        st.session_state.messages = hist["messages"]
+                        st.session_state.sources  = []
+
+                with col_delete:
+                    if st.button("🗑", key=f"del_sess_{s['id']}"):
+                        httpx.delete(f"{API_BASE}/chat/sessions/{s['id']}", timeout=5)
+                        if st.session_state.active_session_id == s["id"]:
+                            st.session_state.active_session_id = None
+                            st.session_state.messages          = []
+                            st.session_state.sources           = []
+                        st.rerun()
         except Exception:
             pass
 

@@ -58,6 +58,29 @@ services:
     # be reachable from outside the Docker network in production. Backend
     # is reached at http://backend:8000 internally.
 
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    restart: unless-stopped
+    environment:
+      # Inside this Docker network, "backend" resolves to the backend
+      # container via Docker's internal DNS — not localhost, which would
+      # point at the frontend container itself.
+      - API_BASE=http://backend:8000/api
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8501/_stcore/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - app-network
+    # NOTE: no "ports:" here either — reached through Nginx, not directly.
+
   nginx:
     image: nginx:alpine
     restart: unless-stopped
@@ -67,6 +90,7 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - backend
+      - frontend
     networks:
       - app-network
 
